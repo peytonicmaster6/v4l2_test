@@ -407,11 +407,11 @@ int main(void) {
 	buf.memory = V4L2_MEMORY_MMAP;
 	buf.index = 0;
 
-	//if(ioctl(fd, VIDIOC_QUERYBUF, &buf) == -1)
-	//{
-		//perror("VIDIOC_QUERYBUF");
-		//return -1;
-	//}
+	if(ioctl(fd, VIDIOC_QUERYBUF, &buf) == -1)
+	{
+	        perror("VIDIOC_QUERYBUF");
+		return -1;
+	}
 
 	/// Kick off the queue-dequeue cycle
 	ioctl(fd, VIDIOC_QBUF, &buf);
