@@ -25,8 +25,8 @@
 
 //#include "glhelp.h"
 
-static const GLuint WIDTH = 1280;
-static const GLuint HEIGHT = 720;
+static const GLuint WIDTH = 1920;
+static const GLuint HEIGHT = 1080;
 
 static const GLchar* vertex_shader_source =
 	"#version 300 es\n"
@@ -274,14 +274,14 @@ int main(void) {
 	fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	fmt.fmt.pix.width       = WIDTH;
 	fmt.fmt.pix.height      = HEIGHT;
-	fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUV420; /// V4L2_PIX_FMT_BGRX32  a yuv format might be faster but needs ISP unit?
+	fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_SBGGR10P; /// V4L2_PIX_FMT_BGRX32  a yuv format might be faster but needs ISP unit?
 	fmt.fmt.pix.field       = V4L2_FIELD_NONE;
 	/// try setting this
 	ioctl(fd, VIDIOC_S_FMT, &fmt);
 
 	/// check what was actually set
 	printf("Pixel format is %d\n", fmt.fmt.pix.pixelformat);
-	if(fmt.fmt.pix.pixelformat != V4L2_PIX_FMT_YUYV)
+	if(fmt.fmt.pix.pixelformat != V4L2_PIX_FMT_SBGGR10P)
 	{
 		printf("Libv4l2 didn't accept the suggested pixel format. Can't proceed.\n");
 		return -1;
@@ -367,18 +367,18 @@ int main(void) {
 					{
 						EGL_WIDTH, fmt.fmt.pix.width,
 						EGL_HEIGHT, fmt.fmt.pix.height,
-						EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_XRGB8888,  /// takes 16 or 32 bits per pixel (or 8 probably)
+						EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_YUV420,  /// takes 16 or 32 bits per pixel (or 8 probably)
 						EGL_DMA_BUF_PLANE0_FD_EXT, expBuf_fd,
 						EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0,
 						EGL_DMA_BUF_PLANE0_PITCH_EXT, fmt.fmt.pix.bytesperline,
-						//EGL_DMA_BUF_PLANE1_FD_EXT, expBuf_fd,
-						//EGL_DMA_BUF_PLANE1_OFFSET_EXT, (fmt.fmt.pix.bytesperline * fmt.fmt.pix.height),
-						//EGL_DMA_BUF_PLANE1_PITCH_EXT, (fmt.fmt.pix.bytesperline / 2),
-						//EGL_DMA_BUF_PLANE2_FD_EXT, expBuf_fd,
-						//EGL_DMA_BUF_PLANE2_OFFSET_EXT, (fmt.fmt.pix.bytesperline * fmt.fmt.pix.height + (fmt.fmt.pix.bytesperline / 2) * (fmt.fmt.pix.height / 2)),
-						//EGL_DMA_BUF_PLANE2_PITCH_EXT, (fmt.fmt.pix.bytesperline / 2),
-						//EGL_YUV_COLOR_SPACE_HINT_EXT, EGL_ITU_REC601_EXT,
-						//EGL_SAMPLE_RANGE_HINT_EXT, EGL_YUV_NARROW_RANGE_EXT,
+						EGL_DMA_BUF_PLANE1_FD_EXT, expBuf_fd,
+						EGL_DMA_BUF_PLANE1_OFFSET_EXT, (fmt.fmt.pix.bytesperline * fmt.fmt.pix.height),
+						EGL_DMA_BUF_PLANE1_PITCH_EXT, (fmt.fmt.pix.bytesperline / 2),
+						EGL_DMA_BUF_PLANE2_FD_EXT, expBuf_fd,
+						EGL_DMA_BUF_PLANE2_OFFSET_EXT, (fmt.fmt.pix.bytesperline * fmt.fmt.pix.height + (fmt.fmt.pix.bytesperline / 2) * (fmt.fmt.pix.height / 2)),
+						EGL_DMA_BUF_PLANE2_PITCH_EXT, (fmt.fmt.pix.bytesperline / 2),
+						EGL_YUV_COLOR_SPACE_HINT_EXT, EGL_ITU_REC601_EXT,
+						EGL_SAMPLE_RANGE_HINT_EXT, EGL_YUV_NARROW_RANGE_EXT,
 						EGL_NONE
 					});
 
@@ -409,12 +409,16 @@ int main(void) {
 
 	if(ioctl(fd, VIDIOC_QUERYBUF, &buf) == -1)
 	{
-	        perror("VIDIOC_QUERYBUF");
+	    perror("VIDIOC_QUERYBUF");
 		return -1;
 	}
 
 	/// Kick off the queue-dequeue cycle
-	ioctl(fd, VIDIOC_QBUF, &buf);
+	if(ioctl(fd, VIDIOC_QBUF, &buf) < 0)
+	{
+		perror("VIDIOC_QBUF_intial");
+		return -1;
+	}
 
 	/// Main Program Loop
 	///
@@ -422,9 +426,19 @@ int main(void) {
 	{
 		//glfwPollEvents();
 				
-		ioctl(fd, VIDIOC_DQBUF, &buf);
-			glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, dma_image);
-		ioctl(fd, VIDIOC_QBUF, &buf);
+		if(ioctl(fd, VIDIOC_DQBUF, &buf) < 0)
+		{
+			perror("VIDIOC_DQBUF");
+			return -1;
+		}
+		
+		glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, dma_image);
+		
+		if(ioctl(fd, VIDIOC_QBUF, &buf) < 0)
+		{
+			perror("VIDIOC_QBUF");
+			return -1;
+		}
 		
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 		glUseProgram(shader_program);
